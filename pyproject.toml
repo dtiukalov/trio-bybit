@@ -1,6 +1,6 @@
 [project]
 name = "trio-bybit"
-version = "0.1.0"
+version = "0.1.1"
 description = "Python bybit async SDK based on trio."
 authors = [
     { name = "Shu Wang", email = "halfelf.ronin@gmail.com" }
@@ -45,7 +45,7 @@ dev-dependencies = [
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/trio_bybit"]
+packages = ["trio_bybit"]
 
 [tool.ruff]
 line-length = 120
