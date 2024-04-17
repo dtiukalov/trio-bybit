@@ -1,4 +1,3 @@
-import gzip
 import hmac
 import time
 from contextlib import asynccontextmanager
@@ -46,7 +45,8 @@ class BybitSocketManager:
 
     async def heartbeat(self):
         while True:
-            await self.ws.ping()
+            with trio.fail_after(5):
+                await self.ws.send_message('{"op": "ping"}')
             await trio.sleep(20)
 
     async def _send_signature(self):
@@ -63,17 +63,21 @@ class BybitSocketManager:
             assert auth_ret["success"]
             self.conn_id = auth_ret["conn_id"]
 
-    async def subscribe_futures(self, subscription):
+    async def subscribe(self, subscription):
         if self.endpoint == "private":
             await self._send_signature()
         await self.ws.send_message(orjson.dumps(subscription))
-        subscribed = orjson.loads(await self.ws.get_message())
-        assert subscribed["op"] == "subscribe"
-        assert subscribed["ret_msg"] == "subscribe"
-        assert subscribed["success"]
-        assert "conn_id" in subscribed
+        if self.endpoint == "spot":  # seems only spot has an immediate response
+            subscribed = orjson.loads(await self.ws.get_message())
+            assert subscribed["op"] == "subscribe"
+            assert subscribed["ret_msg"] == "subscribe"
+            assert subscribed["success"]
+            assert "conn_id" in subscribed
 
     async def get_next_message(self):
         while True:
-            message = await self.ws.get_message()
-            yield orjson.loads(message)
+            raw_message = await self.ws.get_message()
+            message = orjson.loads(raw_message)
+            if message.get("ret_msg") == "pong":
+                continue
+            yield message
