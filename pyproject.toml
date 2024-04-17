@@ -1,6 +1,6 @@
 [project]
 name = "trio-bybit"
-version = "0.1.1"
+version = "0.1.2"
 description = "Python bybit async SDK based on trio."
 authors = [
     { name = "Shu Wang", email = "halfelf.ronin@gmail.com" }
@@ -27,6 +27,9 @@ keywords = [
   "bybit",
   "crypto",
 ]
+
+[project.urls]
+Repository = "https://github.com/halfelf/trio-bybit"
 
 [build-system]
 requires = ["hatchling"]
