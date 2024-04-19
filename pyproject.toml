@@ -1,6 +1,6 @@
 [project]
 name = "trio-bybit"
-version = "0.1.3"
+version = "0.1.4"
 description = "Python bybit async SDK based on trio."
 authors = [
     { name = "Shu Wang", email = "halfelf.ronin@gmail.com" }

@@ -9,14 +9,28 @@ from trio_websocket import open_websocket_url
 
 
 class BybitSocketManager:
-    STREAM_URL = "wss://stream.bybit.com/v5/public/spot"
-    LSTREAM_URL = "wss://stream.bybit.com/v5/public/linear"
-    ISTREAM_URL = "wss://stream.bybit.com/v5/public/inverse"
-    PRIVATE_STREAM_URL = "wss://stream.bybit.com/v5/private"
+    URLS = {
+        "main": {
+            "spot": "wss://stream.bybit.com/v5/public/spot",
+            "linear": "wss://stream.bybit.com/v5/public/linear",
+            "inverse": "wss://stream.bybit.com/v5/public/inverse",
+            "private": "wss://stream.bybit.com/v5/private",
+        },
+        "test": {
+            "spot": "wss://stream-testnet.bybit.com/v5/public/spot",
+            "linear": "wss://stream-testnet.bybit.com/v5/public/linear",
+            "inverse": "wss://stream-testnet.bybit.com/v5/public/inverse",
+            "private": "wss://stream-testnet.bybit.com/v5/private",
+        },
+        "demo": {
+            "private":  "wss://stream-demo.bybit.com",
+        }
+    }
 
-    def __init__(self, endpoint: str = "spot", api_key: str | None = None, api_secret: str | None = None):
+    def __init__(self, endpoint: str = "spot", api_key: str | None = None, api_secret: str | None = None, alternative_net: str = ""):
         self.ws: trio_websocket.WebSocketConnection | None = None
         self.endpoint: str = endpoint
+        self.alternative_net: str = alternative_net if alternative_net else "main"
         if self.endpoint == "private" and (api_key is None or api_secret is None):
             raise ValueError("api_key and api_secret must be provided for private streams")
         self.api_key = api_key
@@ -25,17 +39,10 @@ class BybitSocketManager:
 
     @asynccontextmanager
     async def connect(self):
-        match self.endpoint:
-            case "spot":
-                url = self.STREAM_URL
-            case "linear":
-                url = self.LSTREAM_URL
-            case "inverse":
-                url = self.ISTREAM_URL
-            case "private":
-                url = self.PRIVATE_STREAM_URL
-            case _:
-                raise ValueError("market must be one of 'spot', 'linear' or 'inverse'")
+        try:
+            url = self.URLS[self.alternative_net][self.endpoint]
+        except KeyError:
+            raise ValueError(f"endpoint {self.endpoint} with net {self.alternative_net} not supported")
         async with open_websocket_url(url) as ws:
             self.ws = ws
             async with trio.open_nursery() as nursery:
