@@ -11,9 +11,10 @@ from .exceptions import BybitAPIException, BybitRequestException
 
 
 class BaseClient:
-    API_URL = "https://api.bybit.com"
-    # SECONDARY_API_URL = "https://api.bytick.com"
-    # TEST_NET = "https://api-testnet.bybit.com"
+    API_URL = "https://api.bybit.com/"
+    # SECONDARY_API_URL = "https://api.bytick.com/"
+    TEST_NET_API_URL = "https://api-testnet.bybit.com/"
+    DEMO_NET_API_URL = "https://api-demo.bybit.com/"
     API_VERSION = "v5"
 
     REQUEST_TIMEOUT: float = 5
@@ -24,13 +25,14 @@ class BaseClient:
         api_secret: str | None = None,
         receive_window: int = 5000,
         sign_style: str = "HMAC",
+        alternative_net: str = "",
     ):
         """API Client constructor
-
         :param api_key: Api Key
-        :type api_key: str.
         :param api_secret: Api Secret
-        :type api_secret: str.
+        :param receive_window: Receive Window
+        :param sign_style: Sign Style. Default HMAC. RSA not implemented yet.
+        :param alternative_net: Alternative network. Default empty to use mainnet. Choices: "test", "demo"
         """
         self.API_KEY = api_key
         self.API_SECRET = api_secret
@@ -38,7 +40,13 @@ class BaseClient:
         self.receive_window = receive_window
         self.sign_style = sign_style  # RSA not implemented yet
         self.timestamp_offset = 0
-        self.base_url = self.API_URL + self.API_VERSION + "/"
+        if alternative_net == "test":
+            self.base = self.TEST_NET_API_URL
+        elif alternative_net == "demo":
+            self.base = self.DEMO_NET_API_URL
+        else:
+            self.base = self.API_URL
+        self.base_url = self.base + self.API_VERSION + "/"
         self.session = httpx.AsyncClient(http2=True, base_url=self.base_url)
 
     def _get_headers(self, timestamp_milli: int, signed=False, timeout: int = None) -> dict:
@@ -51,7 +59,7 @@ class BaseClient:
         return headers
 
     def _create_api_uri(self, path: str) -> httpx.URL:
-        return httpx.URL(os.path.join(self.API_URL, self.API_VERSION, path))
+        return httpx.URL(os.path.join(self.base, self.API_VERSION, path))
 
     def _generate_signature(self, request: httpx.Request, timestamp_milli: int) -> str:
         if request.method == "GET":
@@ -80,8 +88,11 @@ class AsyncClient(BaseClient):
         self,
         api_key: str | None = None,
         api_secret: str | None = None,
+        receive_window: int = 5000,
+        sign_style: str = "HMAC",
+        alternative_net: str = "",
     ):
-        super().__init__(api_key, api_secret)
+        super().__init__(api_key, api_secret, receive_window, sign_style, alternative_net)
         self.session: httpx.AsyncClient = httpx.AsyncClient(http2=True)
 
     @classmethod
@@ -89,8 +100,11 @@ class AsyncClient(BaseClient):
         cls,
         api_key: str | None = None,
         api_secret: str | None = None,
+        receive_window: int = 5000,
+        sign_style: str = "HMAC",
+        alternative_net: str = "",
     ) -> "AsyncClient":
-        self = cls(api_key, api_secret)
+        self = cls(api_key, api_secret, receive_window, sign_style, alternative_net)
 
         try:
             # calculate timestamp offset between local and coinex server

@@ -27,11 +27,16 @@ async def test_get_public():
         assert symbol_info["result"]["list"][0]["baseCoin"] == "BTC"
         assert symbol_info["result"]["list"][0]["quoteCoin"] == "USDT"
 
+        orderbook = await client.get_orderbook(category="linear", symbol="BTCUSDT")
+        assert orderbook["retCode"] == 0
+        assert orderbook["retMsg"] == "OK"
+
 
 async def test_get_private():
     client = await AsyncClient.create(
         api_key=os.getenv("BYBIT_API_KEY"),
         api_secret=os.getenv("BYBIT_API_SECRET"),
+        # alternative_net="demo",
     )
 
     async with client:
@@ -39,3 +44,6 @@ async def test_get_private():
         assert wallet["retCode"] == 0
         assert wallet["retMsg"] == "OK"
         assert wallet["result"]["list"][0]["accountType"] == "UNIFIED"
+        position = await client.get_position_info(category="linear", settleCoin="USDT")
+        assert position["retCode"] == 0
+        assert position["retMsg"] == "OK"
