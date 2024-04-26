@@ -173,6 +173,15 @@ class AsyncClient(BaseClient):
     async def get_orderbook(self, **kwargs) -> dict:
         return await self._get("market/orderbook", **kwargs)
 
+    async def get_klines(self, **kwargs) -> dict:
+        return await self._get("market/kline", **kwargs)
+
+    async def get_funding_history(self, **kwargs) -> dict:
+        return await self._get("market/funding/history", **kwargs)
+
+    async def get_ticker(self, **kwargs) -> dict:
+        return await self._get("market/tickers", **kwargs)
+
     async def place_order(self, **kwargs) -> dict:
         return await self._post("order/create", **kwargs, signed=True)
 
