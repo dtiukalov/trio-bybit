@@ -23,11 +23,17 @@ class BybitSocketManager:
             "private": "wss://stream-testnet.bybit.com/v5/private",
         },
         "demo": {
-            "private":  "wss://stream-demo.bybit.com",
-        }
+            "private": "wss://stream-demo.bybit.com",
+        },
     }
 
-    def __init__(self, endpoint: str = "spot", api_key: str | None = None, api_secret: str | None = None, alternative_net: str = ""):
+    def __init__(
+        self,
+        endpoint: str = "spot",
+        api_key: str | None = None,
+        api_secret: str | None = None,
+        alternative_net: str = "",
+    ):
         self.ws: trio_websocket.WebSocketConnection | None = None
         self.endpoint: str = endpoint
         self.alternative_net: str = alternative_net if alternative_net else "main"
