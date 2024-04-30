@@ -7,6 +7,8 @@ import orjson
 import trio_websocket
 from trio_websocket import open_websocket_url
 
+from trio_bybit.exceptions import BybitWebsocketOpError
+
 
 class BybitSocketManager:
     URLS = {
@@ -53,6 +55,8 @@ class BybitSocketManager:
             self.ws = ws
             async with trio.open_nursery() as nursery:
                 nursery.start_soon(self.heartbeat)
+                if self.endpoint == "private":
+                    await self._send_signature()
                 yield self.ws
                 nursery.cancel_scope.cancel()
 
@@ -71,26 +75,25 @@ class BybitSocketManager:
         )
         await self.ws.send_message(orjson.dumps({"op": "auth", "args": [self.api_key, expires, signature]}))
         auth_ret = orjson.loads(await self.ws.get_message())
-        print(auth_ret)
         if auth_ret["op"] == "auth":
             assert auth_ret["success"]
             self.conn_id = auth_ret["conn_id"]
 
-    async def subscribe(self, subscription):
-        if self.endpoint == "private":
-            await self._send_signature()
+    async def subscribe(self, subscription: dict):
+        """
+        Subscribe or unsubscribe to a websocket stream.
+        :param subscription: (un)subscription message, e.g. {"op": "subscribe", "args": ["publicTrade.BTCUSDT"]}
+        """
         await self.ws.send_message(orjson.dumps(subscription))
-        if self.endpoint == "spot":  # seems only spot has an immediate response
-            subscribed = orjson.loads(await self.ws.get_message())
-            assert subscribed["op"] == "subscribe"
-            assert subscribed["ret_msg"] == "subscribe"
-            assert subscribed["success"]
-            assert "conn_id" in subscribed
 
     async def get_next_message(self):
         while True:
             raw_message = await self.ws.get_message()
             message = orjson.loads(raw_message)
-            if message.get("ret_msg") == "pong":
-                continue
-            yield message
+            if "topic" in message and "data" in message:
+                yield message
+            elif "op" in message:
+                if message["op"] == "pong":
+                    continue
+                if not message.get("success"):  # probably a subscription error
+                    raise BybitWebsocketOpError(raw_message)

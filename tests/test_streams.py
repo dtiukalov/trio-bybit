@@ -6,6 +6,21 @@ import pytest_trio
 from trio_bybit.streams import BybitSocketManager
 
 
+async def pub_stream_check(socket):
+    async for msg in socket.get_next_message():
+        assert "ts" in msg
+        assert "type" in msg
+        assert "data" in msg
+
+
+async def pub_unsub(socket):
+    unsub = {
+        "op": "unsubscribe",
+        "args": ["orderbook.1.BTCUSDT", "publicTrade.BTCUSDT"],
+    }
+    await socket.subscribe(unsub)
+
+
 async def test_public_stream():
     socket = BybitSocketManager()
     async with socket.connect():
@@ -15,14 +30,11 @@ async def test_public_stream():
         }
         await socket.subscribe(subscription)
 
-        count = 0
-        async for msg in socket.get_next_message():
-            count += 1
-            assert "ts" in msg
-            assert "type" in msg
-            assert "data" in msg
-            if count >= 500:
-                break
+        with trio.move_on_after(12):
+            async with trio.open_nursery() as nursery:
+                nursery.start_soon(pub_stream_check, socket)
+                await trio.sleep(10)
+                nursery.start_soon(pub_unsub, socket)
 
 
 async def test_public_linear_stream():
@@ -36,7 +48,6 @@ async def test_public_linear_stream():
 
         count = 0
         async for msg in socket.get_next_message():
-            print(msg)
             count += 1
             if msg.get("topic") == "orderbook.1.BTCUSDT":
                 assert "topic" in msg
@@ -52,9 +63,6 @@ async def test_public_linear_stream():
                 assert "S" in msg["data"][0]
                 assert "v" in msg["data"][0]
                 assert "p" in msg["data"][0]
-            else:  # this endpoint responses subscription asynchronously with actual data
-                assert msg["op"] == "subscribe"
-                assert msg["success"]
             if count >= 5000:
                 break
 

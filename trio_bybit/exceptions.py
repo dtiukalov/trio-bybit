@@ -70,6 +70,11 @@ class BybitWebsocketUnableToConnect(Exception):
     pass
 
 
+class BybitWebsocketOpError(Exception):
+    def __init__(self, message):
+        self.message = message
+
+
 class NotImplementedException(Exception):
     def __init__(self, value):
         message = f"Not implemented: {value}"
