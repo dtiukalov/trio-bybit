@@ -76,7 +76,7 @@ class BaseClient:
         if method.lower() == "get":
             req = self.session.build_request(method, uri, headers=headers, params=kwargs)
         else:
-            req = self.session.build_request(method, uri, headers=headers, data=kwargs)
+            req = self.session.build_request(method, uri, headers=headers, json=kwargs)
         if signed:
             req.headers["X-BAPI-SIGN"] = self._generate_signature(req, timestamp)
             req.headers["X-BAPI-SIGN-TYPE"] = "2"
