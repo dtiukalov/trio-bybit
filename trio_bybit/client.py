@@ -1,3 +1,4 @@
+import base64
 import hmac
 import os
 
@@ -6,6 +7,9 @@ import hashlib
 import time
 
 import orjson
+from Crypto.Hash import SHA256
+from Crypto.Signature import PKCS1_v1_5
+from Crypto.PublicKey import RSA
 
 from .exceptions import BybitAPIException, BybitRequestException
 
@@ -31,14 +35,16 @@ class BaseClient:
         :param api_key: Api Key
         :param api_secret: Api Secret
         :param receive_window: Receive Window
-        :param sign_style: Sign Style. Default HMAC. RSA not implemented yet.
+        :param sign_style: Sign Style. Default HMAC. Choices: ["HMAC", "RSA"]
         :param alternative_net: Alternative network. Default empty to use mainnet. Choices: "test", "demo"
         """
         self.API_KEY = api_key
         self.API_SECRET = api_secret
         self.response = None
         self.receive_window = receive_window
-        self.sign_style = sign_style  # RSA not implemented yet
+        if sign_style != "HMAC" and sign_style != "RSA":
+            raise ValueError("Invalid sign style. Must be HMAC or RSA")
+        self.sign_style = sign_style
         self.timestamp_offset = 0
         if alternative_net == "test":
             self.base = self.TEST_NET_API_URL
@@ -68,7 +74,14 @@ class BaseClient:
             prepared_str = (
                 str(timestamp_milli) + self.API_KEY + str(self.receive_window) + request.content.decode("utf-8")
             )
-        return hmac.new(self.API_SECRET.encode("utf-8"), prepared_str.encode("utf-8"), hashlib.sha256).hexdigest()
+        prepared_bytes = prepared_str.encode("utf-8")
+        if self.sign_style == "HMAC":
+            return hmac.new(self.API_SECRET.encode("utf-8"), prepared_bytes, hashlib.sha256).hexdigest()
+        else:  # RSA
+            encoded_param = SHA256.new(prepared_bytes)
+            signature = PKCS1_v1_5.new(RSA.importKey(self.API_SECRET)).sign(encoded_param)
+
+            return base64.b64encode(signature).decode()
 
     def _get_request(self, method, uri, signed: bool, **kwargs) -> httpx.Request:
         timestamp = int(time.time() * 1000 + self.timestamp_offset)
