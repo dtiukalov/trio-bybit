@@ -9,12 +9,9 @@ from trio_bybit.client import AsyncClient
 
 
 async def test_get_wallet():
-    with open(os.getenv("BYBIT_PRIVATE_KEY_PATH"), "r") as f:
-        private_key = f.read()
-
     client = await AsyncClient.create(
         api_key=os.getenv("BYBIT_API_KEY"),
-        api_secret=private_key,
+        api_secret=os.getenv("BYBIT_PRIVATE_KEY_PATH"),
         sign_style="RSA",
     )
 

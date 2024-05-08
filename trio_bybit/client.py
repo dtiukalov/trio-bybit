@@ -7,9 +7,10 @@ import hashlib
 import time
 
 import orjson
-from Crypto.Hash import SHA256
-from Crypto.Signature import PKCS1_v1_5
-from Crypto.PublicKey import RSA
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
+from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
 from .exceptions import BybitAPIException, BybitRequestException
 
@@ -40,6 +41,13 @@ class BaseClient:
         """
         self.API_KEY = api_key
         self.API_SECRET = api_secret
+        self.API_SECRET: RSAPrivateKey | str
+        self.sign_style = sign_style
+        if self.sign_style != "HMAC":
+            with open(api_secret, "rb") as f:
+                self.API_SECRET = load_pem_private_key(f.read(), password=None)
+        else:
+            self.API_SECRET = api_secret
         self.response = None
         self.receive_window = receive_window
         if sign_style != "HMAC" and sign_style != "RSA":
@@ -78,9 +86,7 @@ class BaseClient:
         if self.sign_style == "HMAC":
             return hmac.new(self.API_SECRET.encode("utf-8"), prepared_bytes, hashlib.sha256).hexdigest()
         else:  # RSA
-            encoded_param = SHA256.new(prepared_bytes)
-            signature = PKCS1_v1_5.new(RSA.importKey(self.API_SECRET)).sign(encoded_param)
-
+            signature = self.API_SECRET.sign(prepared_bytes, padding.PKCS1v15(), hashes.SHA256())
             return base64.b64encode(signature).decode()
 
     def _get_request(self, method, uri, signed: bool, **kwargs) -> httpx.Request:
