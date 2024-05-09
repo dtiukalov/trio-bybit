@@ -1,3 +1,4 @@
+import base64
 import hmac
 import time
 from contextlib import asynccontextmanager
@@ -5,6 +6,9 @@ from contextlib import asynccontextmanager
 import trio
 import orjson
 import trio_websocket
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from trio_websocket import open_websocket_url
 
 from trio_bybit.exceptions import BybitWebsocketOpError
@@ -35,6 +39,7 @@ class BybitSocketManager:
         api_key: str | None = None,
         api_secret: str | None = None,
         alternative_net: str = "",
+        sign_style: str = "HMAC",
     ):
         self.ws: trio_websocket.WebSocketConnection | None = None
         self.endpoint: str = endpoint
@@ -44,6 +49,12 @@ class BybitSocketManager:
         self.api_key = api_key
         self.api_secret = api_secret
         self.conn_id: str | None = None
+        if sign_style != "HMAC":
+            with open(api_secret, "rb") as f:
+                self.api_secret = load_pem_private_key(f.read(), password=None)
+        else:
+            self.api_secret = api_secret
+        self.sign_style = sign_style
 
     @asynccontextmanager
     async def connect(self):
@@ -68,11 +79,17 @@ class BybitSocketManager:
 
     async def _send_signature(self):
         expires = int((time.time() + 1) * 1000)
-        signature = str(
-            hmac.new(
-                self.api_secret.encode("utf-8"), f"GET/realtime{expires}".encode("utf-8"), digestmod="sha256"
-            ).hexdigest()
-        )
+        if self.sign_style == "HMAC":
+            signature = str(
+                hmac.new(
+                    self.api_secret.encode("utf-8"), f"GET/realtime{expires}".encode("utf-8"), digestmod="sha256"
+                ).hexdigest()
+            )
+        else:  # RSA
+            signature = self.api_secret.sign(
+                f"GET/realtime{expires}".encode("utf-8"), padding.PKCS1v15(), hashes.SHA256()
+            )
+            signature = base64.b64encode(signature).decode()
         await self.ws.send_message(orjson.dumps({"op": "auth", "args": [self.api_key, expires, signature]}))
         auth_ret = orjson.loads(await self.ws.get_message())
         if auth_ret["op"] == "auth":

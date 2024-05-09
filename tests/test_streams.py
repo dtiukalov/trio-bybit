@@ -82,3 +82,21 @@ async def test_private_stream():
 
         async for msg in socket.get_next_message():
             print(msg)
+
+
+async def test_private_stream_by_rsa_sig():
+    socket = BybitSocketManager(
+        endpoint="private",
+        api_key=os.getenv("BYBIT_RSA_API_KEY"),
+        api_secret=os.getenv("BYBIT_RSA_PRIVATE_KEY_PATH"),
+        sign_style="RSA",
+    )
+    async with socket.connect():
+        subscription = {
+            "op": "subscribe",
+            "args": ["order"],
+        }
+        await socket.subscribe(subscription)
+
+        async for msg in socket.get_next_message():
+            print(msg)
