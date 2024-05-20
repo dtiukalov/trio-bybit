@@ -208,6 +208,15 @@ class AsyncClient(BaseClient):
     async def cancel_order(self, **kwargs) -> dict:
         return await self._post("order/cancel", **kwargs, signed=True)
 
+    async def cancel_all_orders(self, **kwargs) -> dict:
+        return await self._post("order/cancel-all", **kwargs, signed=True)
+
+    async def get_open_orders(self, **kwargs) -> dict:
+        return await self._get("order/realtime", **kwargs, signed=True)
+
+    async def get_execution_history(self, **kwargs) -> dict:
+        return await self._get("execution/list", **kwargs, signed=True)
+
     async def get_position_info(self, **kwargs) -> dict:
         return await self._get("position/list", **kwargs, signed=True)
 
@@ -219,3 +228,15 @@ class AsyncClient(BaseClient):
 
     async def set_collateral_switch(self, **kwargs) -> dict:
         return await self._post("account/set-collateral-switch", **kwargs, signed=True)
+
+    async def get_borrow_history(self, **kwargs) -> dict:
+        return await self._get("account/borrow-history", **kwargs, signed=True)
+
+    async def get_collateral_info(self, **kwargs) -> dict:
+        return await self._get("account/collateral-info", **kwargs, signed=True)
+
+    async def get_fee_rate(self, **kwargs) -> dict:
+        return await self._get("account/fee-rate", **kwargs, signed=True)
+
+    async def get_transaction_log(self, **kwargs) -> dict:
+        return await self._get("account/transaction-log", **kwargs, signed=True)

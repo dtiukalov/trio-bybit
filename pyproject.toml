@@ -1,14 +1,14 @@
 [project]
 name = "trio-bybit"
-version = "0.2.3"
+version = "0.3.0"
 description = "Python bybit async SDK based on trio."
 authors = [
     { name = "Shu Wang", email = "halfelf.ronin@gmail.com" }
 ]
 dependencies = [
-    "trio>=0.25.0",
+    "trio>=0.25.1",
     "httpx[http2]>=0.27.0",
-    "orjson>=3.10.0",
+    "orjson>=3.10.3",
     "dateparser>=1.2.0",
     "pytz>=2024.1",
     "trio-websocket>=0.11.1",
@@ -39,8 +39,8 @@ build-backend = "hatchling.build"
 [tool.rye]
 managed = true
 dev-dependencies = [
-    "pytest>=8.1.1",
-    "ipython>=8.23.0",
+    "pytest>=8.2.1",
+    "ipython>=8.24.0",
     "rich>=13.7.1",
     "pytest-trio>=0.8.0",
 ]
