@@ -48,7 +48,6 @@ class BaseClient:
                 self.API_SECRET = load_pem_private_key(f.read(), password=None)
         else:
             self.API_SECRET = api_secret
-        self.response = None
         self.receive_window = receive_window
         if sign_style != "HMAC" and sign_style != "RSA":
             raise ValueError("Invalid sign style. Must be HMAC or RSA")
@@ -150,9 +149,8 @@ class AsyncClient(BaseClient):
 
     async def _request(self, method, uri: httpx.URL, signed: bool, **kwargs):
         request: httpx.Request = self._get_request(method, uri, signed, **kwargs)
-        self.response = await self.session.send(request)
-        # self.response = await getattr(self.session, method)(uri, **kwargs)
-        return await self._handle_response(self.response)
+        response = await self.session.send(request)
+        return await self._handle_response(response)
 
     @staticmethod
     async def _handle_response(response: httpx.Response):

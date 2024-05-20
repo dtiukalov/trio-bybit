@@ -93,7 +93,10 @@ class BybitSocketManager:
         await self.ws.send_message(orjson.dumps({"op": "auth", "args": [self.api_key, expires, signature]}))
         auth_ret = orjson.loads(await self.ws.get_message())
         if auth_ret["op"] == "auth":
-            assert auth_ret["success"]
+            try:
+                assert auth_ret["success"]
+            except AssertionError:
+                raise BybitWebsocketOpError(auth_ret)
             self.conn_id = auth_ret["conn_id"]
 
     async def subscribe(self, subscription: dict):
