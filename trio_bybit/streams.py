@@ -1,5 +1,6 @@
 import base64
 import hmac
+import logging
 import time
 from contextlib import asynccontextmanager
 
@@ -55,26 +56,89 @@ class BybitSocketManager:
         else:
             self.api_secret = api_secret
         self.sign_style = sign_style
+        self.cancel_scope: trio.CancelScope | None = None
 
     @asynccontextmanager
     async def connect(self):
+        """
+        Asynchronous context manager to establish and maintain a WebSocket connection.
+
+        This method attempts to connect to the specified WebSocket URL and manages the connection lifecycle.
+        If the connection is closed, it will automatically attempt to reconnect.
+
+        Note: this method will not end until forced to. A trio cancel scope could help.
+
+        Yields:
+            trio_websocket.WebSocketConnection: The active WebSocket connection.
+
+        Raises:
+            ValueError: If the specified endpoint and network combination is not supported.
+            RuntimeError: If the connection context manager exits unexpectedly.
+        """
         try:
             url = self.URLS[self.alternative_net][self.endpoint]
         except KeyError:
             raise ValueError(f"endpoint {self.endpoint} with net {self.alternative_net} not supported")
-        async with open_websocket_url(url) as ws:
-            self.ws = ws
+
+        async def _conn(task_status=trio.TASK_STATUS_IGNORED):
+            with trio.CancelScope() as scope:
+                async with open_websocket_url(url) as websock:
+                    self.ws = websock
+                    if self.endpoint == "private":
+                        await self._send_signature()
+                    task_status.started(scope)
+                    await self.heartbeat()
+
+        while True:
             async with trio.open_nursery() as nursery:
-                nursery.start_soon(self.heartbeat)
-                if self.endpoint == "private":
-                    await self._send_signature()
+                self.cancel_scope = await nursery.start(_conn)
                 yield self.ws
-                nursery.cancel_scope.cancel()
+
+            if self.cancel_scope.cancelled_caught:  # connection closed
+                logging.info("Connection closed, restarting...")
+                continue  # restarting connection
+            else:  # should not come here
+                raise RuntimeError("Unexpected exit from websocket connection context manager.")
+
+    async def _send_message(self, message: str | bytes):
+        """
+        Sends a message through the WebSocket connection.
+
+        This method ensures that messages are sent through the WebSocket connection
+        and handles the `ConnectionClosed` exception by cancelling the current scope,
+        which will trigger a reconnection.
+
+        Parameters:
+            message (str | bytes): The message to be sent through the WebSocket.
+        """
+        try:
+            await self.ws.send_message(message)
+        except trio_websocket.ConnectionClosed:
+            self.cancel_scope.cancel()
+            try:
+                await self.ws.send_message(message)
+            except trio_websocket.ConnectionClosed:
+                self.cancel_scope.cancel()
+
+    async def _get_message(self) -> str | bytes:
+        """
+        Retrieve a message from the WebSocket connection.
+
+        This method attempts to get a message from the WebSocket connection. If the connection
+        is closed, it cancels the current scope to trigger a reconnection.
+
+        Returns:
+            str | bytes: The message received from the WebSocket connection.
+        """
+        try:
+            return await self.ws.get_message()
+        except trio_websocket.ConnectionClosed:
+            self.cancel_scope.cancel()
 
     async def heartbeat(self):
         while True:
             with trio.fail_after(5):
-                await self.ws.send_message('{"op": "ping"}')
+                await self._send_message('{"op": "ping"}')
             await trio.sleep(20)
 
     async def _send_signature(self):
@@ -90,8 +154,8 @@ class BybitSocketManager:
                 f"GET/realtime{expires}".encode("utf-8"), padding.PKCS1v15(), hashes.SHA256()
             )
             signature = base64.b64encode(signature).decode()
-        await self.ws.send_message(orjson.dumps({"op": "auth", "args": [self.api_key, expires, signature]}))
-        auth_ret = orjson.loads(await self.ws.get_message())
+        await self._send_message(orjson.dumps({"op": "auth", "args": [self.api_key, expires, signature]}))
+        auth_ret = orjson.loads(await self._get_message())
         if auth_ret["op"] == "auth":
             try:
                 assert auth_ret["success"]
@@ -102,13 +166,21 @@ class BybitSocketManager:
     async def subscribe(self, subscription: dict):
         """
         Subscribe or unsubscribe to a websocket stream.
-        :param subscription: (un)subscription message, e.g. {"op": "subscribe", "args": ["publicTrade.BTCUSDT"]}
+
+        Parameters:
+            subscription (dict): (un)subscription message, e.g. {"op": "subscribe", "args": ["publicTrade.BTCUSDT"]}
         """
-        await self.ws.send_message(orjson.dumps(subscription))
+        await self._send_message(orjson.dumps(subscription))
 
     async def get_next_message(self):
+        """
+        Continuously retrieves messages from the WebSocket connection.
+
+        Yields:
+            dict: The message received from the WebSocket connection containing "topic" and "data".
+        """
         while True:
-            raw_message = await self.ws.get_message()
+            raw_message = await self._get_message()
             message = orjson.loads(raw_message)
             if "topic" in message and "data" in message:
                 yield message
