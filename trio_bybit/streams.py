@@ -58,6 +58,9 @@ class BybitSocketManager:
         self.sign_style = sign_style
         self.cancel_scope: trio.CancelScope | None = None
 
+        self.connected = trio.Condition()
+        self.subscribed = set()  # topics subscribed, for re-subscription
+
     @asynccontextmanager
     async def connect(self):
         """
@@ -87,6 +90,8 @@ class BybitSocketManager:
                     if self.endpoint == "private":
                         await self._send_signature()
                     task_status.started(scope)
+                    async with self.connected:
+                        self.connected.notify_all()
                     await self.heartbeat()
 
         while True:
@@ -115,10 +120,9 @@ class BybitSocketManager:
             await self.ws.send_message(message)
         except trio_websocket.ConnectionClosed:
             self.cancel_scope.cancel()
-            try:
+            async with self.connected:
+                await self.connected.wait()
                 await self.ws.send_message(message)
-            except trio_websocket.ConnectionClosed:
-                self.cancel_scope.cancel()
 
     async def _get_message(self) -> str | bytes:
         """
@@ -134,6 +138,9 @@ class BybitSocketManager:
             return await self.ws.get_message()
         except trio_websocket.ConnectionClosed:
             self.cancel_scope.cancel()
+            async with self.connected:
+                await self.connected.wait()
+                await self.ws.get_message()
 
     async def heartbeat(self):
         while True:
@@ -170,6 +177,12 @@ class BybitSocketManager:
         Parameters:
             subscription (dict): (un)subscription message, e.g. {"op": "subscribe", "args": ["publicTrade.BTCUSDT"]}
         """
+        if "op" == "subscribe":
+            self.subscribed.update(subscription["args"])
+        elif "op" == "unsubscribe":
+            self.subscribed.difference_update(subscription["args"])
+        else:
+            raise ValueError("op must be 'subscribe' or 'unsubscribe'")
         await self._send_message(orjson.dumps(subscription))
 
     async def get_next_message(self):
