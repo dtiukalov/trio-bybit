@@ -179,12 +179,12 @@ class BybitSocketManager:
         Parameters:
             subscription (dict): (un)subscription message, e.g. {"op": "subscribe", "args": ["publicTrade.BTCUSDT"]}
         """
-        if "op" == "subscribe":
+        if subscription["op"] == "subscribe":
             self.subscribed.update(subscription["args"])
-        elif "op" == "unsubscribe":
+        elif subscription["op"] == "unsubscribe":
             self.subscribed.difference_update(subscription["args"])
         else:
-            raise ValueError("op must be 'subscribe' or 'unsubscribe'")
+            raise ValueError(f"op must be 'subscribe' or 'unsubscribe', but received \'{subscription["op"]}\'")
         await self._send_message(orjson.dumps(subscription))
 
     async def get_next_message(self):
