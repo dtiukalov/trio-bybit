@@ -89,6 +89,7 @@ class BybitSocketManager:
                     self.ws = websock
                     if self.endpoint == "private":
                         await self._send_signature()
+                    await self.subscribe({"op": "subscribe", "args": list(self.subscribed)})
                     task_status.started(scope)
                     async with self.connected:
                         self.connected.notify_all()
