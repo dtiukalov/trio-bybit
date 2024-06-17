@@ -30,13 +30,15 @@ class BaseClient:
         api_secret: str | None = None,
         receive_window: int = 5000,
         sign_style: str = "HMAC",
+        api_secret_passphrase: bytes | None = None,
         alternative_net: str = "",
     ):
         """API Client constructor
         :param api_key: Api Key
-        :param api_secret: Api Secret
+        :param api_secret: Api Secret. For RSA sign style, it should be the path to the private key file
         :param receive_window: Receive Window
         :param sign_style: Sign Style. Default HMAC. Choices: ["HMAC", "RSA"]
+        :param api_secret_passphrase: RSA (or other cryptography method) private key passphrase
         :param alternative_net: Alternative network. Default empty to use mainnet. Choices: "test", "demo"
         """
         self.API_KEY = api_key
@@ -45,7 +47,7 @@ class BaseClient:
         self.sign_style = sign_style
         if self.sign_style != "HMAC":
             with open(api_secret, "rb") as f:
-                self.API_SECRET = load_pem_private_key(f.read(), password=None)
+                self.API_SECRET = load_pem_private_key(f.read(), password=api_secret_passphrase)
         else:
             self.API_SECRET = api_secret
         self.receive_window = receive_window
@@ -108,9 +110,10 @@ class AsyncClient(BaseClient):
         api_secret: str | None = None,
         receive_window: int = 5000,
         sign_style: str = "HMAC",
+        api_secret_passphrase: bytes | None = None,
         alternative_net: str = "",
     ):
-        super().__init__(api_key, api_secret, receive_window, sign_style, alternative_net)
+        super().__init__(api_key, api_secret, receive_window, sign_style, api_secret_passphrase, alternative_net)
         self.session: httpx.AsyncClient = httpx.AsyncClient(http2=True)
 
     @classmethod
@@ -120,9 +123,10 @@ class AsyncClient(BaseClient):
         api_secret: str | None = None,
         receive_window: int = 5000,
         sign_style: str = "HMAC",
+        api_secret_passphrase: bytes | None = None,
         alternative_net: str = "",
     ) -> "AsyncClient":
-        self = cls(api_key, api_secret, receive_window, sign_style, alternative_net)
+        self = cls(api_key, api_secret, receive_window, sign_style, api_secret_passphrase, alternative_net)
 
         try:
             # calculate timestamp offset between local and coinex server

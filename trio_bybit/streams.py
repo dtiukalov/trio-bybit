@@ -39,6 +39,7 @@ class BybitSocketManager:
         endpoint: str = "spot",
         api_key: str | None = None,
         api_secret: str | None = None,
+        api_secret_passphrase: bytes | None = None,
         alternative_net: str = "",
         sign_style: str = "HMAC",
     ):
@@ -52,7 +53,7 @@ class BybitSocketManager:
         self.conn_id: str | None = None
         if sign_style != "HMAC":
             with open(api_secret, "rb") as f:
-                self.api_secret = load_pem_private_key(f.read(), password=None)
+                self.api_secret = load_pem_private_key(f.read(), password=api_secret_passphrase)
         else:
             self.api_secret = api_secret
         self.sign_style = sign_style
