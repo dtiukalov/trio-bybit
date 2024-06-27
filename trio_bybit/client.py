@@ -215,6 +215,9 @@ class AsyncClient(BaseClient):
     async def cancel_all_orders(self, **kwargs) -> dict:
         return await self._post("order/cancel-all", **kwargs, signed=True)
 
+    async def get_order_history(self, **kwargs) -> dict:
+        return await self._get("order/history", **kwargs, signed=True)
+
     async def get_open_orders(self, **kwargs) -> dict:
         return await self._get("order/realtime", **kwargs, signed=True)
 
@@ -244,3 +247,24 @@ class AsyncClient(BaseClient):
 
     async def get_transaction_log(self, **kwargs) -> dict:
         return await self._get("account/transaction-log", **kwargs, signed=True)
+
+    async def get_account_info(self) -> dict:
+        return await self._get("account/info", signed=True)
+
+    async def set_hedging_mode(self, **kwargs) -> dict:
+        return await self._post("account/set-hedging-mode", **kwargs, signed=True)
+
+    async def get_coin_greeks(self, **kwargs) -> dict:
+        return await self._get("asset/coin-greeks", **kwargs, signed=True)
+
+    async def get_spot_margin_trade_data(self, **kwargs) -> dict:
+        return await self._get("spot-margin-trade/data", **kwargs)
+
+    async def switch_spot_margin_trade_mode(self, **kwargs) -> dict:
+        return await self._post("spot-margin-trade/switch-mode", **kwargs, signed=True)
+
+    async def set_spot_margin_trade_leverage(self, **kwargs) -> dict:
+        return await self._post("spot-margin-trade/set-leverage", **kwargs, signed=True)
+
+    async def get_spot_margin_trade_state(self, **kwargs) -> dict:
+        return await self._get("spot-margin-trade/state", **kwargs, signed=True)
