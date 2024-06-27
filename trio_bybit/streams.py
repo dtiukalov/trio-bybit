@@ -185,7 +185,7 @@ class BybitSocketManager:
         elif subscription["op"] == "unsubscribe":
             self.subscribed.difference_update(subscription["args"])
         else:
-            raise ValueError(f"op must be 'subscribe' or 'unsubscribe', but received \'{subscription["op"]}\'")
+            raise ValueError(f"op must be 'subscribe' or 'unsubscribe', but received '{subscription["op"]}'")
         await self._send_message(orjson.dumps(subscription))
 
     async def get_next_message(self):
