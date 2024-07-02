@@ -268,3 +268,9 @@ class AsyncClient(BaseClient):
 
     async def get_spot_margin_trade_state(self, **kwargs) -> dict:
         return await self._get("spot-margin-trade/state", **kwargs, signed=True)
+
+    async def create_universal_transfer(self, **kwargs) -> dict:
+        return await self._post("asset/transfer/universal-transfer", **kwargs, signed=True)
+
+    async def get_universal_transfer_records(self, **kwargs) -> dict:
+        return await self._get("asset/transfer/query-universal-transfer-list", **kwargs, signed=True)
