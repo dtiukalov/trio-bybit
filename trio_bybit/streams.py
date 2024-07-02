@@ -9,6 +9,7 @@ import orjson
 import trio_websocket
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from trio_websocket import open_websocket_url
 
@@ -33,6 +34,10 @@ class BybitSocketManager:
             "private": "wss://stream-demo.bybit.com",
         },
     }
+    ws: trio_websocket.WebSocketConnection
+    cancel_scope: trio.CancelScope
+    conn_id: str
+    last_pong: int  # milliseconds
 
     def __init__(
         self,
@@ -43,21 +48,19 @@ class BybitSocketManager:
         alternative_net: str = "",
         sign_style: str = "HMAC",
     ):
-        self.ws: trio_websocket.WebSocketConnection | None = None
         self.endpoint: str = endpoint
         self.alternative_net: str = alternative_net if alternative_net else "main"
         if self.endpoint == "private" and (api_key is None or api_secret is None):
             raise ValueError("api_key and api_secret must be provided for private streams")
         self.api_key = api_key
         self.api_secret = api_secret
-        self.conn_id: str | None = None
         if sign_style != "HMAC":
+            assert api_secret is not None
             with open(api_secret, "rb") as f:
                 self.api_secret = load_pem_private_key(f.read(), password=api_secret_passphrase)
         else:
             self.api_secret = api_secret
         self.sign_style = sign_style
-        self.cancel_scope: trio.CancelScope | None = None
 
         self.connected = trio.Condition()
         self.subscribed = set()  # topics subscribed, for re-subscription
@@ -143,7 +146,7 @@ class BybitSocketManager:
             self.cancel_scope.cancel()
             async with self.connected:
                 await self.connected.wait()
-                await self.ws.get_message()
+                return await self.ws.get_message()
 
     async def heartbeat(self):
         while True:
@@ -154,12 +157,14 @@ class BybitSocketManager:
     async def _send_signature(self):
         expires = int((time.time() + 1) * 1000)
         if self.sign_style == "HMAC":
+            assert isinstance(self.api_secret, str)
             signature = str(
                 hmac.new(
                     self.api_secret.encode("utf-8"), f"GET/realtime{expires}".encode("utf-8"), digestmod="sha256"
                 ).hexdigest()
             )
         else:  # RSA
+            assert isinstance(self.api_secret, RSAPrivateKey)
             signature = self.api_secret.sign(
                 f"GET/realtime{expires}".encode("utf-8"), padding.PKCS1v15(), hashes.SHA256()
             )
@@ -200,8 +205,9 @@ class BybitSocketManager:
             message = orjson.loads(raw_message)
             if "topic" in message and "data" in message:
                 yield message
+                continue
             elif "op" in message:
                 if message["op"] == "pong":
-                    continue
-                if not message.get("success"):  # probably a subscription error
+                    self.last_pong = int(message["args"][0])
+                elif not message.get("success"):  # probably a subscription error
                     raise BybitWebsocketOpError(raw_message)

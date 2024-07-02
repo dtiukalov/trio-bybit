@@ -19,7 +19,8 @@ def date_to_milliseconds(date_str: str) -> int:
     # get epoch value in UTC
     epoch: datetime = datetime.fromtimestamp(0, tz=pytz.utc)
     # parse our date string
-    d: datetime = dateparser.parse(date_str, settings={"TIMEZONE": "UTC"})
+    d = dateparser.parse(date_str, settings={"TIMEZONE": "UTC"})
+    assert d is not None
     # if the date is not timezone aware apply UTC timezone
     if d.tzinfo is None or d.tzinfo.utcoffset(d) is None:
         d = d.replace(tzinfo=pytz.utc)
