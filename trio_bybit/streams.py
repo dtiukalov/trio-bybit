@@ -103,6 +103,7 @@ class BybitSocketManager:
         while True:
             async with trio.open_nursery() as nursery:
                 self.cancel_scope = await nursery.start(_conn)
+                nursery.start_soon(self.check_pong)
                 yield self.ws
 
             if self.cancel_scope.cancelled_caught:  # connection closed
@@ -125,6 +126,7 @@ class BybitSocketManager:
         try:
             await self.ws.send_message(message)
         except trio_websocket.ConnectionClosed:
+            logging.warning("Connection closed, restarting...")
             self.cancel_scope.cancel()
             async with self.connected:
                 await self.connected.wait()
@@ -143,6 +145,7 @@ class BybitSocketManager:
         try:
             return await self.ws.get_message()
         except trio_websocket.ConnectionClosed:
+            logging.warning("Connection closed, restarting...")
             self.cancel_scope.cancel()
             async with self.connected:
                 await self.connected.wait()
@@ -153,6 +156,15 @@ class BybitSocketManager:
             with trio.fail_after(5):
                 await self._send_message('{"op": "ping"}')
             await trio.sleep(20)
+
+    async def check_pong(self):
+        while True:
+            await trio.sleep(10)
+            diff = int(time.time() * 1000) - self.last_pong
+            if diff > 60000:
+                logging.warning(f"Pong timeout by {diff} ms, cancelling...")
+                self.cancel_scope.cancel()
+                return
 
     async def _send_signature(self):
         expires = int((time.time() + 1) * 1000)
