@@ -65,7 +65,7 @@ class BybitSocketManager:
         self.connected = trio.Condition()
         self.subscribed = set()  # topics subscribed, for re-subscription
 
-    async def connect(self):
+    async def connect(self, task_status=trio.TASK_STATUS_IGNORED):
         """
         Coroutine to establish and maintain a WebSocket connection.
 
@@ -83,7 +83,7 @@ class BybitSocketManager:
         except KeyError:
             raise ValueError(f"endpoint {self.endpoint} with net {self.alternative_net} not supported")
 
-        async def _conn(task_status=trio.TASK_STATUS_IGNORED):
+        async def _conn(inner_task_status=trio.TASK_STATUS_IGNORED):
             with trio.CancelScope() as scope:
                 async with open_websocket_url(url) as websock:
                     self.ws = websock
@@ -91,7 +91,7 @@ class BybitSocketManager:
                         await self._send_signature()
                     if self.subscribed:
                         await self.subscribe({"op": "subscribe", "args": list(self.subscribed)})
-                    task_status.started(scope)
+                    inner_task_status.started(scope)
                     async with self.connected:
                         self.connected.notify_all()
                     await self.heartbeat()
@@ -99,6 +99,7 @@ class BybitSocketManager:
         while True:
             async with trio.open_nursery() as nursery:
                 self.cancel_scope = await nursery.start(_conn)
+                task_status.started()
                 nursery.start_soon(self.check_pong)
 
             if self.cancel_scope.cancelled_caught:  # connection closed

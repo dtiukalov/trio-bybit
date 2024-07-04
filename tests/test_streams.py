@@ -24,7 +24,8 @@ async def pub_unsub(socket):
 async def test_public_stream():
     socket = BybitSocketManager()
     with trio.move_on_after(12):
-        async with socket.connect():
+        async with trio.open_nursery() as nursery:
+            await nursery.start(socket.connect)
             subscription = {
                 "op": "subscribe",
                 "args": ["orderbook.1.BTCUSDT", "publicTrade.BTCUSDT"],
@@ -39,7 +40,8 @@ async def test_public_stream():
 async def test_public_linear_stream():
     socket = BybitSocketManager(endpoint="linear")
     with trio.move_on_after(30):
-        async with socket.connect():
+        async with trio.open_nursery() as nursery:
+            await nursery.start(socket.connect)
             subscription = {
                 "op": "subscribe",
                 "args": ["orderbook.1.BTCUSDT", "publicTrade.BTCUSDT"],
@@ -70,7 +72,8 @@ async def test_private_stream():
         api_secret=os.getenv("BYBIT_API_SECRET"),
     )
     with trio.move_on_after(100):
-        async with socket.connect():
+        async with trio.open_nursery() as nursery:
+            await nursery.start(socket.connect)
             subscription = {
                 "op": "subscribe",
                 "args": ["order"],
@@ -89,7 +92,8 @@ async def test_private_stream_by_rsa_sig():
         sign_style="RSA",
     )
     with trio.move_on_after(100):
-        async with socket.connect():
+        async with trio.open_nursery() as nursery:
+            await nursery.start(socket.connect)
             subscription = {
                 "op": "subscribe",
                 "args": ["order"],
