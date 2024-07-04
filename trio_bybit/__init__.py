@@ -1,3 +1,3 @@
-__version__ = "0.3.6b2"
+__version__ = "0.3.6"
 
 from trio_bybit.client import AsyncClient
