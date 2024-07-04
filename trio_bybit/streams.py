@@ -65,6 +65,19 @@ class BybitSocketManager:
         self.connected = trio.Condition()
         self.subscribed = set()  # topics subscribed, for re-subscription
 
+    async def _conn(self, url, *, task_status=trio.TASK_STATUS_IGNORED):
+        with trio.CancelScope() as scope:
+            async with open_websocket_url(url) as websock:
+                self.ws = websock
+                if self.endpoint == "private":
+                    await self._send_signature()
+                if self.subscribed:
+                    await self.subscribe({"op": "subscribe", "args": list(self.subscribed)})
+                task_status.started(scope)
+                async with self.connected:
+                    self.connected.notify_all()
+                await self.heartbeat()
+
     async def connect(self, task_status=trio.TASK_STATUS_IGNORED):
         """
         Coroutine to establish and maintain a WebSocket connection.
@@ -83,22 +96,9 @@ class BybitSocketManager:
         except KeyError:
             raise ValueError(f"endpoint {self.endpoint} with net {self.alternative_net} not supported")
 
-        async def _conn(inner_task_status=trio.TASK_STATUS_IGNORED):
-            with trio.CancelScope() as scope:
-                async with open_websocket_url(url) as websock:
-                    self.ws = websock
-                    if self.endpoint == "private":
-                        await self._send_signature()
-                    if self.subscribed:
-                        await self.subscribe({"op": "subscribe", "args": list(self.subscribed)})
-                    inner_task_status.started(scope)
-                    async with self.connected:
-                        self.connected.notify_all()
-                    await self.heartbeat()
-
         while True:
             async with trio.open_nursery() as nursery:
-                self.cancel_scope = await nursery.start(_conn)
+                self.cancel_scope = await nursery.start(self._conn, url)
                 task_status.started()
                 nursery.start_soon(self.check_pong)
 
@@ -215,7 +215,13 @@ class BybitSocketManager:
                 yield message
                 continue
             elif "op" in message:
+                # private/public and spot/futures/option have several different pong message formats
+                # some have "op" field as "pong", with "args" field as [timestamp]
+                # some have "ret_msg" field as "pong" with "op" as "ping"
+                # shit...
                 if message["op"] == "pong":
                     self.last_pong = int(message["args"][0])
+                elif message["op"] == "ping" and message["ret_msg"] == "pong":
+                    self.last_pong = int(time.time() * 1000)
                 elif not message.get("success"):  # probably a subscription error
                     raise BybitWebsocketOpError(raw_message)
