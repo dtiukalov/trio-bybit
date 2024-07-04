@@ -65,18 +65,14 @@ class BybitSocketManager:
         self.connected = trio.Condition()
         self.subscribed = set()  # topics subscribed, for re-subscription
 
-    @asynccontextmanager
     async def connect(self):
         """
-        Asynchronous context manager to establish and maintain a WebSocket connection.
+        Coroutine to establish and maintain a WebSocket connection.
 
         This method attempts to connect to the specified WebSocket URL and manages the connection lifecycle.
         If the connection is closed, it will automatically attempt to reconnect.
 
         Note: this method will not end until forced to. A trio cancel scope could help.
-
-        Yields:
-            trio_websocket.WebSocketConnection: The active WebSocket connection.
 
         Raises:
             ValueError: If the specified endpoint and network combination is not supported.
@@ -104,7 +100,6 @@ class BybitSocketManager:
             async with trio.open_nursery() as nursery:
                 self.cancel_scope = await nursery.start(_conn)
                 nursery.start_soon(self.check_pong)
-                yield self.ws
 
             if self.cancel_scope.cancelled_caught:  # connection closed
                 logging.info("Connection closed, restarting...")
