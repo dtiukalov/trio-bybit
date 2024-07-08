@@ -2,10 +2,10 @@ import base64
 import hmac
 import logging
 import time
-from contextlib import asynccontextmanager
 
 import trio
 import orjson
+import trio_util
 import trio_websocket
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding
@@ -62,8 +62,11 @@ class BybitSocketManager:
             self.api_secret = api_secret
         self.sign_style = sign_style
 
-        self.connected = trio.Condition()
+        self.connected = trio_util.AsyncBool()
         self.subscribed = set()  # topics subscribed, for re-subscription
+
+    async def wait_connected(self):
+        await self.connected.wait_value(True)
 
     async def _conn(self, url, *, task_status=trio.TASK_STATUS_IGNORED):
         with trio.CancelScope() as scope:
@@ -73,12 +76,11 @@ class BybitSocketManager:
                     await self._send_signature()
                 if self.subscribed:
                     await self.subscribe({"op": "subscribe", "args": list(self.subscribed)})
+                self.connected.value = True
                 task_status.started(scope)
-                async with self.connected:
-                    self.connected.notify_all()
                 await self.heartbeat()
 
-    async def connect(self, task_status=trio.TASK_STATUS_IGNORED):
+    async def connect(self):
         """
         Coroutine to establish and maintain a WebSocket connection.
 
@@ -99,9 +101,9 @@ class BybitSocketManager:
         while True:
             async with trio.open_nursery() as nursery:
                 self.cancel_scope = await nursery.start(self._conn, url)
-                task_status.started()
                 nursery.start_soon(self.check_pong)
 
+            self.connected.value = False
             if self.cancel_scope.cancelled_caught:  # connection closed
                 logging.info("Connection closed, restarting...")
                 continue  # restarting connection
@@ -124,9 +126,8 @@ class BybitSocketManager:
         except trio_websocket.ConnectionClosed:
             logging.warning("Connection closed, restarting...")
             self.cancel_scope.cancel()
-            async with self.connected:
-                await self.connected.wait()
-                await self.ws.send_message(message)
+            await self.connected.wait_value(True)
+            await self.ws.send_message(message)
 
     async def _get_message(self) -> str | bytes:
         """
@@ -143,9 +144,8 @@ class BybitSocketManager:
         except trio_websocket.ConnectionClosed:
             logging.warning("Connection closed, restarting...")
             self.cancel_scope.cancel()
-            async with self.connected:
-                await self.connected.wait()
-                return await self.ws.get_message()
+            await self.connected.wait_value(True)
+            return await self.ws.get_message()
 
     async def heartbeat(self):
         while True:

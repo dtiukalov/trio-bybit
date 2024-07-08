@@ -1,6 +1,6 @@
 [project]
 name = "trio-bybit"
-version = "0.3.6"
+version = "0.3.7"
 description = "Python bybit async SDK based on trio."
 authors = [
     { name = "Shu Wang", email = "halfelf.ronin@gmail.com" }
@@ -13,6 +13,7 @@ dependencies = [
     "pytz>=2024.1",
     "trio-websocket>=0.11.1",
     "cryptography>=42.0.7",
+    "trio-util>=0.7.0",
 ]
 readme = "README.md"
 requires-python = ">= 3.12"
