@@ -103,7 +103,6 @@ class BybitSocketManager:
                 self.cancel_scope = await nursery.start(self._conn, url)
                 nursery.start_soon(self.check_pong)
 
-            self.connected.value = False
             if self.cancel_scope.cancelled_caught:  # connection closed
                 logging.info("Connection closed, restarting...")
                 continue  # restarting connection
@@ -125,6 +124,7 @@ class BybitSocketManager:
             await self.ws.send_message(message)
         except trio_websocket.ConnectionClosed:
             logging.warning("Connection closed, restarting...")
+            self.connected.value = False
             self.cancel_scope.cancel()
             await self.connected.wait_value(True)
             await self.ws.send_message(message)
@@ -143,6 +143,7 @@ class BybitSocketManager:
             return await self.ws.get_message()
         except trio_websocket.ConnectionClosed:
             logging.warning("Connection closed, restarting...")
+            self.connected.value = False
             self.cancel_scope.cancel()
             await self.connected.wait_value(True)
             return await self.ws.get_message()
@@ -159,6 +160,7 @@ class BybitSocketManager:
             diff = int(time.time() * 1000) - self.last_pong
             if diff > 60000:
                 logging.warning(f"Pong timeout by {diff} ms, cancelling...")
+                self.connected.value = False
                 self.cancel_scope.cancel()
                 return
 
