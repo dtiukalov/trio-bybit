@@ -101,6 +101,7 @@ class BybitSocketManager:
         while True:
             async with trio.open_nursery() as nursery:
                 self.cancel_scope = await nursery.start(self._conn, url)
+                nursery.start_soon(self.heartbeat)
                 nursery.start_soon(self.check_pong)
 
             if self.cancel_scope.cancelled_caught:  # connection closed
@@ -156,7 +157,7 @@ class BybitSocketManager:
 
     async def check_pong(self):
         while True:
-            await trio.sleep(10)
+            await trio.sleep(20)
             diff = int(time.time() * 1000) - self.last_pong
             if diff > 60000:
                 logging.warning(f"Pong timeout by {diff} ms, cancelling...")
